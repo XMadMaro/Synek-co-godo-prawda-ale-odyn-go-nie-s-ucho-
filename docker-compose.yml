@@ -1,0 +1,55 @@
+version: "3.8"
+
+services:
+  # Vector Database for RAG
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: truthseeker-qdrant
+    ports:
+      - "6333:6333"  # REST API
+      - "6334:6334"  # gRPC
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__GRPC_PORT=6334
+    restart: unless-stopped
+
+  # Relational Database for metadata, audit history
+  postgres:
+    image: postgres:16-alpine
+    container_name: truthseeker-postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-truthseeker}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-truthseeker_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-truthseeker}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-truthseeker}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Cache & Session Storage
+  redis:
+    image: redis:7-alpine
+    container_name: truthseeker-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  qdrant_data:
+  postgres_data:
+  redis_data:
