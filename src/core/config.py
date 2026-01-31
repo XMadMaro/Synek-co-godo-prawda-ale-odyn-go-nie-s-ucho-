@@ -64,7 +64,9 @@ class Settings(BaseSettings):
     # ==========================================================================
     openai_api_key: str = ""
     anthropic_api_key: str = ""
+    google_api_key: str = ""  # Gemini
     llm_model: str = "gpt-4-turbo"
+    gemini_model: str = "gemini-1.5-flash"  # Default Gemini model
     embedding_model: str = "text-embedding-3-small"
 
     # ==========================================================================

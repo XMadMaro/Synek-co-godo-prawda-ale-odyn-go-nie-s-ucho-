@@ -1,0 +1,164 @@
+# ChatBot Auditor - Przykładowa Konfiguracja
+# Skopiuj jako config.yaml i uzupełnij wartości
+
+# =============================================================================
+# PODSTAWOWE
+# =============================================================================
+app:
+  name: "ChatBot Auditor"
+  environment: "development"  # development | staging | production
+  debug: true
+  log_level: "INFO"  # DEBUG | INFO | WARNING | ERROR
+
+# =============================================================================
+# API SERVER
+# =============================================================================
+server:
+  host: "0.0.0.0"
+  port: 8000
+  workers: 4
+  cors_origins:
+    - "http://localhost:3000"
+    - "https://your-frontend.com"
+
+# =============================================================================
+# BAZY DANYCH
+# =============================================================================
+database:
+  postgres:
+    host: "localhost"
+    port: 5432
+    name: "chatbot_auditor"
+    user: "postgres"
+    password: "${POSTGRES_PASSWORD}"  # z .env
+  
+  qdrant:
+    host: "localhost"
+    port: 6333
+    collection: "knowledge_base"
+    vector_size: 1536  # dla OpenAI ada-002
+  
+  redis:
+    host: "localhost"
+    port: 6379
+    db: 0
+
+# =============================================================================
+# LLM & EMBEDDINGS
+# =============================================================================
+llm:
+  provider: "openai"  # openai | anthropic | local
+  model: "gpt-4-turbo"
+  api_key: "${OPENAI_API_KEY}"
+  temperature: 0.1
+  max_tokens: 2000
+
+embeddings:
+  provider: "openai"
+  model: "text-embedding-ada-002"
+  batch_size: 100
+
+# =============================================================================
+# SCRAPER
+# =============================================================================
+scraper:
+  max_concurrent: 5
+  timeout_seconds: 30
+  retry_attempts: 3
+  user_agent: "ChatBotAuditor/1.0"
+  respect_robots_txt: true
+  
+  # Dozwolone domeny (whitelist)
+  allowed_domains:
+    - "*.gov.pl"
+    - "*.um.*.pl"
+    - "bip.*.pl"
+  
+  # Typy plików do pobierania
+  file_types:
+    - "html"
+    - "pdf"
+    - "docx"
+
+# =============================================================================
+# RAG
+# =============================================================================
+rag:
+  chunk_size: 512
+  chunk_overlap: 50
+  top_k: 5
+  min_similarity: 0.7
+  
+  reranker:
+    enabled: true
+    model: "cross-encoder/ms-marco-MiniLM-L-6-v2"
+
+# =============================================================================
+# FACT-CHECKER
+# =============================================================================
+fact_checker:
+  min_sources: 2
+  confidence_threshold: 0.7
+  max_age_days: 90  # dokumenty starsze = niższy score
+  
+  # Wagi dla scoringu
+  weights:
+    source_reliability: 0.3
+    freshness: 0.2
+    cross_reference: 0.3
+    content_quality: 0.2
+
+# =============================================================================
+# AUDITOR
+# =============================================================================
+auditor:
+  questions_per_session: 20
+  wait_between_questions: 2  # sekundy
+  timeout_per_question: 30
+  
+  # Playwright config
+  browser:
+    headless: true
+    viewport:
+      width: 1280
+      height: 720
+
+# =============================================================================
+# HARMONOGRAMY (CRON)
+# =============================================================================
+scheduler:
+  enabled: true
+  jobs:
+    - name: "rescrape_sources"
+      cron: "0 2 * * *"  # codziennie o 2:00
+      task: "scraper.rescrape_all"
+    
+    - name: "fact_check_refresh"
+      cron: "0 4 * * 0"  # niedziela o 4:00
+      task: "fact_checker.revalidate_all"
+    
+    - name: "cleanup_old_reports"
+      cron: "0 0 1 * *"  # 1 dzień miesiąca
+      task: "auditor.cleanup_reports"
+      params:
+        older_than_days: 90
+
+# =============================================================================
+# ALERTY
+# =============================================================================
+alerts:
+  enabled: true
+  channels:
+    - type: "email"
+      recipients: ["admin@example.com"]
+    - type: "slack"
+      webhook_url: "${SLACK_WEBHOOK_URL}"
+  
+  triggers:
+    - event: "scrape_failed"
+      severity: "warning"
+    - event: "fact_conflict_detected"
+      severity: "high"
+    - event: "audit_score_below_threshold"
+      threshold: 0.5
+      severity: "critical"

@@ -5,7 +5,7 @@ Pydantic models for data exchange between agents.
 
 from datetime import datetime
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -172,3 +172,77 @@ class ImprovedPrompt(BaseModel):
     changes_summary: list[str]
     analysis: PromptAnalysis
     version: str
+
+
+# =============================================================================
+# Coordination Models (for Antigravity integration)
+# =============================================================================
+
+class TaskType(str, Enum):
+    """Types of atomic tasks."""
+    IMPLEMENTATION = "implementation"
+    TEST = "test"
+    REFACTOR = "refactor"
+    FIX = "fix"
+    DOCUMENTATION = "documentation"
+
+
+class AtomicTask(BaseModel):
+    """
+    An atomic task for delegation to Antigravity agents.
+
+    Each task should be:
+    - Focused: One clear objective
+    - Independent: Minimal dependencies
+    - Testable: Has verifiable success criteria
+    - Small: Completable in a single agent execution
+    """
+    id: str
+    change_name: str
+    description: str
+    task_type: TaskType = TaskType.IMPLEMENTATION
+    files_to_read: list[str] = Field(default_factory=list)
+    files_to_modify: list[str] = Field(default_factory=list)
+    context: dict[str, Any] = Field(default_factory=dict)
+    constraints: list[str] = Field(default_factory=list)
+    expected_output: dict[str, Any] = Field(default_factory=dict)
+    dependencies: list[str] = Field(default_factory=list)  # IDs of dependent tasks
+
+
+class CheckResult(BaseModel):
+    """Result of a single verification check."""
+    name: str
+    passed: bool
+    details: str | None = None
+    duration_ms: int = 0
+
+
+class VerificationStatus(str, Enum):
+    """Status of verification."""
+    PASS = "PASS"
+    FAIL = "FAIL"
+    WARN = "WARN"
+
+
+class VerificationRecommendation(str, Enum):
+    """Recommendation after verification."""
+    PROCEED = "PROCEED"
+    RETRY = "RETRY"
+    ESCALATE = "ESCALATE"
+
+
+class VerificationResult(BaseModel):
+    """
+    Result from Verification Agent after checking code changes.
+
+    Used to determine if a task was completed successfully
+    and whether to proceed, retry, or escalate.
+    """
+    task_id: str
+    status: VerificationStatus
+    checks: dict[str, CheckResult] = Field(default_factory=dict)
+    overall_confidence: float = Field(ge=0.0, le=1.0, default=0.0)
+    recommendation: VerificationRecommendation = VerificationRecommendation.PROCEED
+    errors: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    verified_at: datetime = Field(default_factory=datetime.utcnow)
